@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ルールを壊す可能性があるカードを選べ</title>
+  <style>
+    :root {
+      --bg: #f4f4f4;
+      --ink: #111;
+      --paper: #fff;
+      --muted: #5f5f5f;
+      --line: #111;
+      --shadow: 5px 5px 0 #111;
+      --soft-shadow: 3px 3px 0 #111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+        var(--bg);
+      background-size: 18px 18px;
+      color: var(--ink);
+      font-family: "Courier New", "Yu Gothic", "Hiragino Kaku Gothic ProN", monospace;
+      letter-spacing: 0;
+    }
+
+    button {
+      color: inherit;
+      font: inherit;
+    }
+
+    .app {
+      width: min(1040px, calc(100% - 24px));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .panel {
+      padding: clamp(18px, 4vw, 34px);
+      border: 3px solid var(--line);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .start-layout {
+      display: grid;
+      gap: 22px;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 900px;
+      font-size: clamp(30px, 7vw, 68px);
+      line-height: 1.04;
+    }
+
+    h2 {
+      font-size: clamp(22px, 5vw, 40px);
+      line-height: 1.12;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: clamp(15px, 2.4vw, 18px);
+      font-weight: 700;
+      line-height: 1.75;
+    }
+
+    .ascii {
+      padding: 16px;
+      border: 3px solid var(--line);
+      background: var(--ink);
+      color: var(--paper);
+      font-size: clamp(11px, 2vw, 16px);
+      line-height: 1.15;
+      overflow: hidden;
+      white-space: pre;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 20px;
+    }
+
+    .rule-box {
+      margin-top: 16px;
+      padding: 18px;
+      border: 3px double var(--line);
+      background: #fafafa;
+    }
+
+    .rule-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .rule-text {
+      font-size: clamp(23px, 4.5vw, 38px);
+      font-weight: 900;
+      line-height: 1.22;
+      overflow-wrap: anywhere;
+    }
+
+    .helper {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-left: 8px solid var(--line);
+      background: #fff;
+      font-size: clamp(15px, 2.4vw, 19px);
+      font-weight: 900;
+      line-height: 1.55;
+    }
+
+    .hud {
+      display: grid;
+      gap: 10px;
+      min-width: 198px;
+      font-weight: 900;
+      text-align: right;
+    }
+
+    .meter-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .meter {
+      height: 22px;
+      margin-top: 7px;
+      border: 3px solid var(--line);
+      background: repeating-linear-gradient(90deg, #fff 0 8px, #e8e8e8 8px 16px);
+      overflow: hidden;
+    }
+
+    .meter-fill {
+      width: 100%;
+      height: 100%;
+      background: var(--ink);
+      transition: width 0.16s linear;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin: 22px 0;
+    }
+
+    .card {
+      min-height: 156px;
+      padding: 14px;
+      border: 3px solid var(--line);
+      background: var(--paper);
+      box-shadow: var(--soft-shadow);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: clamp(18px, 2.7vw, 27px);
+      font-weight: 900;
+      line-height: 1.28;
+      overflow-wrap: anywhere;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease, color 0.08s ease, opacity 0.16s ease;
+      user-select: none;
+    }
+
+    .card:hover,
+    .card:focus-visible {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 #111;
+      outline: none;
+    }
+
+    .card.selected {
+      background: var(--ink);
+      color: var(--paper);
+      transform: translate(3px, 3px);
+      box-shadow: 0 0 0 #111;
+    }
+
+    .card.correct {
+      background: var(--ink);
+      color: var(--paper);
+      outline: 6px double var(--ink);
+      outline-offset: 4px;
+      opacity: 1;
+    }
+
+    .card.missed {
+      background: var(--paper);
+      color: var(--ink);
+      outline: 6px solid var(--ink);
+      outline-offset: 4px;
+      box-shadow: inset 0 0 0 5px #fff, inset 0 0 0 9px #111;
+      opacity: 1;
+    }
+
+    .card.wrong {
+      background: #eee;
+      color: #777;
+      opacity: 0.35;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      min-height: 52px;
+      padding: 10px 22px;
+      border: 3px solid var(--line);
+      background: var(--paper);
+      box-shadow: var(--soft-shadow);
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 900;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease, color 0.08s ease;
+    }
+
+    .btn.primary {
+      min-width: 172px;
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .btn:hover,
+    .btn:focus-visible {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 #111;
+      outline: none;
+    }
+
+    .btn:active {
+      transform: translate(3px, 3px);
+      box-shadow: 0 0 0 #111;
+    }
+
+    .tiny {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .flash {
+      min-height: 30px;
+      margin-top: 12px;
+      font-weight: 900;
+      line-height: 1.5;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 22px 0;
+    }
+
+    .stat,
+    .diagnosis,
+    .review-item {
+      padding: 14px;
+      border: 3px solid var(--line);
+      background: var(--paper);
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 6px;
+      font-size: clamp(28px, 6vw, 46px);
+      line-height: 1;
+    }
+
+    .diagnosis {
+      margin: 18px 0;
+      background: #fafafa;
+    }
+
+    .animal {
+      margin-bottom: 8px;
+      font-size: clamp(30px, 7vw, 58px);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .review-list {
+      display: grid;
+      gap: 12px;
+      max-height: 330px;
+      margin-top: 16px;
+      padding-right: 4px;
+      overflow: auto;
+    }
+
+    .review-title {
+      margin-bottom: 8px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 5px 8px;
+      border: 2px solid var(--line);
+      background: #fff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .chip.dark {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    @media (max-width: 790px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .hud {
+        min-width: 0;
+        text-align: left;
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card {
+        min-height: 132px;
+      }
+
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 430px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        display: grid;
+      }
+
+      .btn,
+      .btn.primary {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="startScreen" class="screen active">
+      <div class="panel start-layout">
+        <div>
+          <h1>ルールを壊す可能性があるカードを選べ</h1>
+          <p class="lead">IF P THEN Q を検証する心理ゲームです。ルールに合っていそうなカードではなく、ルール違反が起こり得るカードを選びます。</p>
+        </div>
+        <div class="ascii" aria-hidden="true">+-------------------------------+
+|   P   | NOT P |   Q   | NOT Q |
++-------------------------------+
+      FIND P AND NOT Q</div>
+        <div class="actions">
+          <p class="tiny">8問から5問をランダム出題。正解 +100、不要 -50。</p>
+          <button id="startBtn" class="btn primary" type="button">START</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen">
+      <div class="panel">
+        <div class="topbar">
+          <div>
+            <h2>ルールを壊す可能性があるカードを選べ</h2>
+            <div class="rule-box">
+              <span class="rule-label">RULE</span>
+              <p id="ruleText" class="rule-text"></p>
+              <p class="helper">このルールが本当に正しいか確かめるには、どのカードを見る？</p>
+            </div>
+          </div>
+          <div class="hud">
+            <div>Q <span id="questionNow">1</span>/<span id="questionTotal">5</span></div>
+            <div>SCORE <span id="scoreText">0</span></div>
+            <div>
+              <div class="meter-label"><span>TIME</span><span id="timeText">100%</span></div>
+              <div class="meter" aria-label="残り時間">
+                <div id="timeFill" class="meter-fill"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="cards" class="cards"></div>
+
+        <div class="actions">
+          <p class="tiny">クリックでON/OFF。複数選択できます。</p>
+          <button id="judgeBtn" class="btn primary" type="button">決定</button>
+        </div>
+        <p id="flash" class="flash" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="resultScreen" class="screen">
+      <div class="panel">
+        <h2>RESULT</h2>
+        <div class="result-grid">
+          <div class="stat">SCORE<strong id="finalScore">0</strong></div>
+          <div class="stat">正解率<strong id="accuracyText">0%</strong></div>
+          <div class="stat">残り時間<strong id="finalTime">0%</strong></div>
+        </div>
+
+        <div class="diagnosis">
+          <div id="animalType" class="animal"></div>
+          <p id="typeText" class="lead"></p>
+          <p id="commentText" class="lead"></p>
+        </div>
+
+        <h2>CHECK LOG</h2>
+        <div id="reviewList" class="review-list"></div>
+
+        <div class="actions" style="margin-top: 20px;">
+          <p class="tiny">IF P THEN Q の検証に必要なのは、P と NOT Q です。</p>
+          <button id="retryBtn" class="btn primary" type="button">もう一度</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const questions = [
+      {
+        rule: "健康志向ならサラダを注文する",
+        cards: ["健康志向の人", "健康志向じゃない人", "サラダを注文している人", "揚げ物を注文している人"],
+        correct: ["健康志向の人", "揚げ物を注文している人"]
+      },
+      {
+        rule: "ダイエット中なら甘いものを食べない",
+        cards: ["ダイエット中の人", "ダイエットしていない人", "甘いものを食べている人", "甘いものを食べていない人"],
+        correct: ["ダイエット中の人", "甘いものを食べている人"]
+      },
+      {
+        rule: "忙しいなら残業している",
+        cards: ["忙しい人", "忙しくない人", "残業している人", "定時で帰る人"],
+        correct: ["忙しい人", "定時で帰る人"]
+      },
+      {
+        rule: "お酒を飲むなら20歳以上である",
+        cards: ["お酒を飲んでいる人", "飲んでいない人", "25歳の人", "17歳の人"],
+        correct: ["お酒を飲んでいる人", "17歳の人"]
+      },
+      {
+        rule: "会員なら割引される",
+        cards: ["会員の人", "会員じゃない人", "割引されている人", "割引されていない人"],
+        correct: ["会員の人", "割引されていない人"]
+      },
+      {
+        rule: "ゲームを始めるならチュートリアルを見る",
+        cards: ["ゲームを始めた人", "始めていない人", "チュートリアルを見た人", "見ていない人"],
+        correct: ["ゲームを始めた人", "見ていない人"]
+      },
+      {
+        rule: "VIPなら優先案内される",
+        cards: ["VIPの人", "VIPじゃない人", "優先案内された人", "案内されていない人"],
+        correct: ["VIPの人", "案内されていない人"]
+      },
+      {
+        rule: "無料なら試してみる",
+        cards: ["無料のものを見た人", "見ていない人", "試した人", "試していない人"],
+        correct: ["無料のものを見た人", "試していない人"]
+      }
+    ];
+
+    let gameQuestions = [];
+    const QUESTIONS_PER_GAME = 5;
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    const screens = {
+      start: document.getElementById("startScreen"),
+      game: document.getElementById("gameScreen"),
+      result: document.getElementById("resultScreen")
+    };
+
+    const startBtn = document.getElementById("startBtn");
+    const retryBtn = document.getElementById("retryBtn");
+    const judgeBtn = document.getElementById("judgeBtn");
+    const ruleText = document.getElementById("ruleText");
+    const cardsEl = document.getElementById("cards");
+    const scoreText = document.getElementById("scoreText");
+    const questionNow = document.getElementById("questionNow");
+    const questionTotal = document.getElementById("questionTotal");
+    const timeFill = document.getElementById("timeFill");
+    const timeText = document.getElementById("timeText");
+    const flash = document.getElementById("flash");
+    const finalScore = document.getElementById("finalScore");
+    const accuracyText = document.getElementById("accuracyText");
+    const finalTime = document.getElementById("finalTime");
+    const animalType = document.getElementById("animalType");
+    const typeText = document.getElementById("typeText");
+    const commentText = document.getElementById("commentText");
+    const reviewList = document.getElementById("reviewList");
+
+    let current = 0;
+    let score = 0;
+    let time = 100;
+    let selected = new Set();
+    let history = [];
+    let timerId = null;
+    let lastTick = 0;
+    let locked = false;
+
+    questionTotal.textContent = String(QUESTIONS_PER_GAME);
+
+    function showScreen(name) {
+      Object.values(screens).forEach(screen => screen.classList.remove("active"));
+      screens[name].classList.add("active");
+    }
+
+    function startGame() {
+      gameQuestions = shuffle([...questions]).slice(0, QUESTIONS_PER_GAME);
+      current = 0;
+      score = 0;
+      time = 100;
+      selected = new Set();
+      history = [];
+      locked = false;
+      questionTotal.textContent = String(gameQuestions.length);
+      showScreen("game");
+      renderQuestion();
+      startTimer();
+    }
+
+    function renderQuestion() {
+      const q = gameQuestions[current];
+      selected.clear();
+      locked = false;
+      ruleText.textContent = q.rule;
+      questionNow.textContent = String(current + 1);
+      scoreText.textContent = String(score);
+      flash.textContent = "";
+      cardsEl.innerHTML = "";
+
+      shuffle([...q.cards]).forEach(cardText => {
+        const card = document.createElement("button");
+        card.className = "card";
+        card.type = "button";
+        card.textContent = cardText;
+        card.dataset.value = cardText;
+        card.setAttribute("aria-pressed", "false");
+        card.addEventListener("click", () => toggleCard(card, cardText));
+        cardsEl.appendChild(card);
+      });
+
+      updateTimeDisplay();
+    }
+
+    function toggleCard(card, cardText) {
+      if (locked) return;
+
+      if (selected.has(cardText)) {
+        selected.delete(cardText);
+        card.classList.remove("selected");
+        card.setAttribute("aria-pressed", "false");
+      } else {
+        selected.add(cardText);
+        card.classList.add("selected");
+        card.setAttribute("aria-pressed", "true");
+      }
+    }
+
+    function startTimer() {
+      stopTimer();
+      lastTick = performance.now();
+      timerId = requestAnimationFrame(tick);
+    }
+
+    function stopTimer() {
+      if (timerId !== null) {
+        cancelAnimationFrame(timerId);
+        timerId = null;
+      }
+    }
+
+    function tick(now) {
+      const elapsed = Math.max(0, now - lastTick) / 1000;
+      lastTick = now;
+      const progressRatio = gameQuestions.length ? current / gameQuestions.length : 0;
+      const progressBoost = progressRatio * 4.2;
+      const lowTimeBoost = time < 35 ? 1.4 : 0;
+      time -= elapsed * (3.9 + progressBoost + lowTimeBoost);
+      time = Math.max(0, time);
+      updateTimeDisplay();
+
+      if (time <= 0) {
+        finishGame();
+        return;
+      }
+
+      timerId = requestAnimationFrame(tick);
+    }
+
+    function updateTimeDisplay() {
+      const rounded = Math.ceil(time);
+      timeFill.style.width = `${time}%`;
+      timeText.textContent = `${rounded}%`;
+    }
+
+    function judge() {
+      if (locked) return;
+      locked = true;
+
+      const q = gameQuestions[current];
+      const correctSet = new Set(q.correct);
+      let gained = 0;
+      let correctHits = 0;
+      let wrongPicks = 0;
+
+      selected.forEach(card => {
+        if (correctSet.has(card)) {
+          gained += 100;
+          correctHits += 1;
+        } else {
+          gained -= 50;
+          wrongPicks += 1;
+        }
+      });
+
+      const missed = q.correct.filter(card => !selected.has(card)).length;
+      const perfect = correctHits === q.correct.length && wrongPicks === 0;
+      score += gained;
+      time += perfect ? 16 : -11 - wrongPicks * 7 - missed * 5;
+      time = Math.max(0, Math.min(100, time));
+
+      revealCards(correctSet);
+
+      history.push({
+        rule: q.rule,
+        selected: Array.from(selected),
+        correct: q.correct.slice(),
+        perfect,
+        gained,
+        wrongPicks,
+        missed
+      });
+
+      scoreText.textContent = String(score);
+      updateTimeDisplay();
+      flash.textContent = perfect
+        ? `正解 +${gained} / TIME回復`
+        : `検証不足 ${gained >= 0 ? "+" : ""}${gained} / TIME減少`;
+
+      window.setTimeout(() => {
+        current += 1;
+        if (current >= gameQuestions.length || time <= 0) {
+          finishGame();
+        } else {
+          renderQuestion();
+        }
+      }, 1500);
+    }
+
+    function revealCards(correctSet) {
+      Array.from(cardsEl.children).forEach(card => {
+        const value = card.dataset.value;
+        const isCorrect = correctSet.has(value);
+        const wasSelected = selected.has(value);
+        card.classList.remove("selected");
+
+        if (isCorrect && wasSelected) {
+          card.classList.add("correct");
+        } else if (isCorrect && !wasSelected) {
+          card.classList.add("missed");
+        } else {
+          card.classList.add("wrong");
+        }
+      });
+    }
+
+    function finishGame() {
+      stopTimer();
+      showScreen("result");
+
+      const total = gameQuestions.length || QUESTIONS_PER_GAME;
+      const perfectCount = history.filter(item => item.perfect).length;
+      const accuracy = Math.round((perfectCount / total) * 100);
+      const diagnosis = getDiagnosis(accuracy);
+
+      finalScore.textContent = String(score);
+      accuracyText.textContent = `${accuracy}%`;
+      finalTime.textContent = `${Math.ceil(time)}%`;
+      animalType.textContent = diagnosis.name;
+      typeText.textContent = diagnosis.text;
+      commentText.textContent = buildComment(history);
+      renderReview();
+    }
+
+    function getDiagnosis(accuracy) {
+      if (accuracy <= 20) return { name: "ナマケモノ", text: "「まぁ…だいたい合ってればいいか」" };
+      if (accuracy <= 40) return { name: "ヒツジ", text: "「それっぽいの選んだよね？」" };
+      if (accuracy <= 60) return { name: "イヌ", text: "「惜しい、あと一歩」" };
+      if (accuracy <= 80) return { name: "オオカミ", text: "「ちゃんと検証している」" };
+      return { name: "フクロウ", text: "「それが論理だ」" };
+    }
+
+    function buildComment(logs) {
+      const wrongPickTotal = logs.reduce((sum, item) => sum + item.wrongPicks, 0);
+      const missedTotal = logs.reduce((sum, item) => sum + item.missed, 0);
+
+      if (wrongPickTotal > 0) {
+        return "一致を探しています（確証バイアス）";
+      }
+
+      if (missedTotal > 0) {
+        return "違反を見ていません（NOT Qを見逃し）";
+      }
+
+      return "違反を検証できています（PとNOT Qを確認）";
+    }
+
+    function renderReview() {
+      reviewList.innerHTML = "";
+
+      gameQuestions.forEach((q, index) => {
+        const log = history[index] || {
+          rule: q.rule,
+          selected: [],
+          correct: q.correct,
+          perfect: false
+        };
+
+        const item = document.createElement("div");
+        item.className = "review-item";
+
+        const title = document.createElement("div");
+        title.className = "review-title";
+        title.textContent = `${index + 1}. ${q.rule} ${log.perfect ? "OK" : "MISS"}`;
+        item.appendChild(title);
+
+        const correct = document.createElement("div");
+        correct.className = "chips";
+        correct.innerHTML = `<span class="chip dark">正解</span>${log.correct.map(card => `<span class="chip">${escapeHtml(card)}</span>`).join("")}`;
+        item.appendChild(correct);
+
+        const mine = document.createElement("div");
+        mine.className = "chips";
+        mine.style.marginTop = "8px";
+        const selectedText = log.selected.length ? log.selected : ["未選択"];
+        mine.innerHTML = `<span class="chip dark">選択</span>${selectedText.map(card => `<span class="chip">${escapeHtml(card)}</span>`).join("")}`;
+        item.appendChild(mine);
+
+        reviewList.appendChild(item);
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    startBtn.addEventListener("click", startGame);
+    retryBtn.addEventListener("click", startGame);
+    judgeBtn.addEventListener("click", judge);
+  </script>
+</body>
+</html>
